@@ -13,6 +13,7 @@ export interface Props {
   blogInfoList: BlogInfo[]
 }
 
+// 首页展示博客列表
 export default function BlogList({ blogInfoList }: Props) {
   return (
     <ul className={style.blog_list}>
