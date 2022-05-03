@@ -1,13 +1,8 @@
 import Link from 'next/link';
 import React from 'react'
+import { BlogInfo } from '../../types/BlogInfo';
 import style from './BlogList.module.scss';
 
-export type BlogInfo = {
-  path: string,
-  title: string,
-  publishTime: string,
-  abstract: string,
-};
 
 export interface Props {
   blogInfoList: BlogInfo[]

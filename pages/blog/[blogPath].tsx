@@ -6,7 +6,8 @@ import type { GetStaticPaths, GetStaticProps } from 'next';
 import { ParsedUrlQuery } from "querystring";
 import path from 'path';
 import { promises as fs } from 'fs';
-import type { BlogInfo } from '../../src/component/BlogList';
+import { BlogInfo } from "../../src/types/BlogInfo";
+import { getBlogInfoList } from "../../src/util/getBlogInfoList";
 
 interface BlogPageProps {
   contentHTML: string;
@@ -31,13 +32,15 @@ export default function BlogPage({ contentHTML, title }: BlogPageProps) {
 }
 
 interface Params extends ParsedUrlQuery {
-  blogPath: string,
-  title: string
+  blogPath: string
 }
 
 export const getStaticProps: GetStaticProps<BlogPageProps, Params> = async (context) => {
   const blogPath = context.params?.blogPath ?? '';
-  const title = context.params?.title ?? '';
+  // nextjs无法从getStaticPaths传递除路径之外的参数
+  // 故此处需要重新查找
+  const blogInfoList = await getBlogInfoList();
+  const title = blogInfoList.filter((blogInfo) => blogInfo.path === blogPath)[0].title;
   // 未做错误处理
   // 需要保证blogInfo.json中的数据与blog文件夹中的文件相符
   const blogFile = path.join(process.cwd(), 'blog', blogPath + '.html');
@@ -51,14 +54,11 @@ export const getStaticProps: GetStaticProps<BlogPageProps, Params> = async (cont
 }
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  const blogInfoFile = path.join(process.cwd(), 'blogInfo.json');
-  const fileContent = await fs.readFile(blogInfoFile, "utf-8");
-  const blogInfoList: BlogInfo[] = JSON.parse(fileContent);
+  const blogInfoList = await getBlogInfoList();
   const paths = blogInfoList.map((blogInfo) => {
     return {
       params: {
-        blogPath: blogInfo.path,
-        title: blogInfo.title
+        blogPath: blogInfo.path
       }
     };
   })

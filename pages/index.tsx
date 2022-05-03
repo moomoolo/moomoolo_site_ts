@@ -1,11 +1,12 @@
 import Head from 'next/head';
 import React from 'react';
 import BlogList from '../src/component/BlogList';
-import type { BlogInfo } from '../src/component/BlogList'; 
+import { BlogInfo } from '../src/types/BlogInfo';
 import Nav from '../src/component/Nav';
 import type { GetStaticProps } from 'next';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getBlogInfoList } from '../src/util/getBlogInfoList';
 
 interface Porps {
   blogInfoList: BlogInfo[]
@@ -26,9 +27,7 @@ export default function Index({ blogInfoList }: Porps) {
 }
 
 export const getStaticProps: GetStaticProps = async () => {
-  const blogInfoFile = path.join(process.cwd(), 'blogInfo.json');
-  const fileContent = await fs.readFile(blogInfoFile, "utf-8");
-  const blogInfoList = JSON.parse(fileContent);
+  const blogInfoList = await getBlogInfoList();
   return {
     props: {
       blogInfoList
