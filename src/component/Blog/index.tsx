@@ -1,5 +1,6 @@
 import React from "react";
 import style from "./Blog.module.scss";
+import Prism from 'prismjs';
 
 export interface BlogProps {
   contentHTML: string
