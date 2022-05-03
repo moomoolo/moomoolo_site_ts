@@ -1,0 +1,158 @@
+<h1>以太坊的共识算法</h1>
+<address>最后修改 2021.12.3, by moomoo</address>
+<h2>导言</h2>
+<p>以太坊是比特币之后的又一大去中心化的区块链应用。作为一个去中心化的应用，以太坊网络能够安全的运行在分布于世界各地的节点之上，依赖于其背后的共识机制。本文讲述以太坊所用到的共识机制。</p>
+
+<h2>什么是共识</h2>
+<p>共识，指的是分布式系统中各个节点的状态达到统一。</p>
+            <p>就以太坊而言，以太坊的本质是一个状态机，每个节点储存着当前的“世界状态”（world state)(包括账户余额、智能合约数据等)，以太坊网络中每一笔交易,比如转账、创建合约，都会改变当前的“世界状态”。如下图所示：</p>
+            <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/trans_state.png"></img>
+            <p>在实际运行中，为了确定每一笔交易的顺序，避免出现双花问题，以太坊每隔一段时间(10~20秒)，会将一批交易打包成一个块，根据块内的交易改变当前的“世界状态”。如下图所示。</p>
+            <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/block_state.png"></img>
+            <p>同时，每个块中还有上一个块的哈希值(parentHash字段)，前后链接，以确定交易发生的顺序，以此形成一条“区块链”。</p>
+            <p>从创始区块开始，每增加一个新区块，都会改变当前的链，进而改变当前的“世界状态”。所以在以太坊的语境中，我们所说的共识，便是就正确的链及“世界状态”达成统一。</p>
+
+            <h2>以太坊的共识算法</h2>
+            <p>上面说到，以太坊的共识是就正确链达成共识，所以共识算法的工作，就是让网络中的节点拿到正确的链，并且在有恶意节点试图传播错误的链时，共识算法能够拒绝错误链。</p>
+            <p>接下来，我们说一下目前以太坊正在使用的<strong>Proof of Work —— 工作量证明算法</strong></p>
+            <h3>Proof of Work 工作量证明</h3>
+            <p>工作量证明算法的思路是，节点需要付出一定的工作来产出新块，以增加恶意节点生成错误链的难度，并且奖励正确产出新块的节点，以吸引更多诚实节点的加入，增加网络的安全性。</p>
+            <h4>Ethash算法</h4>
+            <p>当以太坊节点想要在现有的链上添加新的块时，需要进行一些计算，为了避免人们开发出专门用于挖矿的机器，造成生产力的浪费，以太坊采用了一种受I/O限制的算法 —— <strong>Ethash</strong>。以下是算法过程：</p>
+            <h5>1. 准备数据</h5>
+            <p>在进行计算之前，节点首先需要准备两组数据：<em>cache</em>和<em>dataset</em>，用于后面的工作量证明计算。以太坊以30000个节点为一个周期(epoch)，从0开始计数:</p>
+<pre>
+<code
+    class="language-javascript"
+>epoch = Math.floor(block_number / 30000);</code></pre>
+            <p>每个周期<em>cache</em>和<em>dataset</em>都会发生变化。</p>
+            <p>首先，节点需要计算一个<em>seed hash</em>值，<em>seed hash</em>长度为256位，初始值为全0，之后下一个周期的<em>seed hash</em>为上一个周期<em>seed hash</em>值的Keccak-256哈希结果。也就是：</p>
+<pre>
+<code class="language-javascript"
+>const initSeed = Buffer.alloc(32, 0) //  256位0
+
+function getSeed(epoch) { // epoch为周期数
+    let seed = initSeed;
+    for(let i = 0; i < epoch; i++) {
+        seed = keccak256(seed);
+    }
+    return seed;
+}</code>
+</pre>
+            <p>计算出<em>seed hash</em>值后，我们需要计算<em>cache</em>的大小，<em>cache</em>的大小以byte为单位，是常量HASH_BYTE(64)的整数倍。<em>cache</em>大小的上限随着周期线性增长，但是为了避免大小线性增长造成<em>cache</em>数据出现周期性规律，我们以小于当前周期上限的最大HASH_BYTE的质数倍作为该周期的<em>cache</em>大小。具体过程如下：</p>
+<pre><code class="language-javascript"
+>const INIT_CACHE_SIZE = 2 ** 24;  // 初始的cahce大小
+const CACHE_SIZE_GROWTH = 2 ** 17;  // 每个周期cache的增长量
+const HASH_BYTE = 64;  
+function getCacheSize(epoch) {
+    size = INIT_CACHE_SIZE + CACHE_SIZE_GROWTH * epoch;
+    size -= HASH_BYTE;
+    while(!isPrime(size / HASH_BYTE)) {
+        size -= 2 * HASH_BYTE;
+    }
+    return size;
+}</code></pre>
+            <p>之后，我们便根据计算出来的<em>cache</em>大小，填充<em>cache</em>的内容。首先是使用<em>seed hash</em>填充(填充过程见代码)，填满后，进行三轮RandMemoHash计算，得到最终的<em>cache</em>。具体过程如下</p>
+<pre><code 
+class="language-javascript"
+>const xor = require(\'buffer-xor\');  //  Buffer上的按位异或
+const HASH_BYTE = 64;
+function makeCache(size, seedHash) {
+    let n = size / HASH_BYTE;
+    // 使用seedHash填充
+    let cache = [keccak512(seedHash)];
+    for(let i = 1; i < n; i++) {
+        cache.push(keccak512(cache[i-1]));
+    }
+    
+    // 进行三次RandMemoHash
+    for(let _ = 0; _ < 3; _++) {
+        for(let i = 0; i < n; i++) {
+            v = cache[i].readUInt32LE(0) % n;
+            cache[i] = keccak512(xor(cache[(i - 1 + n) % n], cache[v]));
+        }
+    }
+    return cache;
+}</code></pre>
+            <p>得到<em>cache</em>后，我们需要计算第二部分数据 —— <em>dataset</em>。首先，我们要计算<em>dataset</em>的大小。计算方法与计算<em>cache</em>大小类似，只不过初始的参数不同，且单位为MIX_BYTE(128)。如下：</p>
+<pre><code 
+    class="language-javascript"
+>const INIT_DATASET_SIZE = 2 ** 30;  // 初始的dataset大小
+const DATASET_SIZE_GROWTH = 2 ** 23;  // 每个周期dataset的增长量
+const MIX_BYTE = 64;  
+function getCacheSize(epoch) {
+    size = INIT_DATASET_SIZE + DATASET_SIZE_GROWTH * epoch;
+    size -= MIX_BYTE;
+    while(!isPrime(size / MIX_BYTE)) {
+        size -= 2 * MIX_BYTE;
+    }
+    return size;
+}</code></pre>
+            <p>得到<em>dataset</em>的大小后，我们需要根据<em>cache</em>的内容，计算出<em>dataset</em>的内容。</p>
+            <h5>2.工作量证明计算</h5>
+            <p>在区块头中，有两个字段是用来进行工作量证明计算的 —— <em>mixHash</em>和<em>nounce</em>。其中<em>mixHash</em>长度为256位，<em>nounce</em>为64位。我们把除去这两个字段的区块头记为<em>truncatedHeader</em>。</p>
+            <p>首先介绍一下PoW函数，PoW函数以<em>truncatedHeader</em>、<em>nounce</em>和<em>dataset</em>为输入，经过一些列的哈希运算，输出两个256位的值: <em>mixHash</em>和<em>result</em>。如下：</p>
+<pre><code class="language-javascript">function PoW(truncatedHeader, nounce, dataset) {
+    // 进行一系列哈希
+    // ...
+    return {
+        mixHash,
+        result
+    };
+}</code></pre>
+            <p>其中不同的<em>nounce</em>值会产生不同的<em>mixHash</em>和<em>result</em>。</p>
+            <p>区块头中还有一个字段 —— <em>difficulty</em>，该字段由该区块的区块高度、产出时间以及上一区块的<em>difficulty</em>字段计算得来。每个区块的<em>difficulty</em>都会自动调整，控制出块速度。</p>
+            <p>节点打包一个新的区块头时，是没有<em>mixHash</em>和<em>nounce</em>字段的，也就是<em>truncatedHeader</em>。为了使该区块头上链，节点需要做一下事情：</p>
+            <ol>
+                <li>
+                    <p>找到一个<em>nounce</em>值(0 ~ 2^64 - 1)，并使用该<em>nounce</em>、<em>truncatedHeader</em>和当前周期的<em>dataset</em>带入PoW函数中，得到<em>mixHash</em>值和<em>result</em>值。</p>
+                </li>
+                <li>
+                    <p><em>result</em>值需要满足<em>result</em> < (2^256 / <em>difficulty</em>)。</p>
+                </li>
+    <li>
+        <p>如果<em>result</em>值符合条件，将<em>mixHash</em>值和<em>nounce</em>值写入区块头中，并将区块广播出去，使区块上链。</p>
+    </li>
+    <li>如果<em>result</em>值不满足，则继续尝试不同的<em>nounce</em>。</li>
+    <li>如果在计算期间收到了网络中其他节点广播的区块，则验证该区块，如果该区块有效，则接受该区块，重新打包自己的区块，准备加在该区块之后。</li>
+    </ol>
+    <p>以上过程也就是我们常说的“挖矿”，该过程是一个不断尝试<em>nounce</em>并进行哈希运算的过程，需要一定的工作量。</p>
+    <p>同时，因为每个区块都将上一个区块的哈希值储存在<em>parentHash</em>字段中，所以，如果想要修改链上的其中一个区块，就需要重新计算该区块之后的所有区块的nounce值。这样大大增加了区块修改的难度。</p>
+    <h4>链的选择</h4>
+    <p>从创世区块开始，因为每个节点都能够在上一个区块之后增加新的区块，于是不可避免的，多个节点会往同一高度增加不同的区块，出现分叉(fork)，使网络中的区块形成树状结构，如图：</p>
+    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/choose_chain.png"/>
+    <p>那么，网络中的节点如何选择正确的链呢？比特币采用的是最长链策略，选取区块数最多的链，在图中对应的就是0->1->2->3B->4B->5。</p>
+    <p>而以太坊稍微不同，以太坊首先计算从区块树的根节点(也就是创世节点，Block 0)到每个叶子节点(图中Block 4A、Block 5、Block 4C)路径上区块<em>difficulty</em>的总和，选取<em>difficulty</em>总和最大的那条路径作为正确的链。网络中的节点便会在这条链上增加新的区块。</p>
+    <h4>激励措施</h4>
+    <p>在以太坊中，每产生一个新的区块，就产生2Ether(2021年12月3日)的收益，该收益连同区块上交易的gas费，会进入矿工所指定的地址中。但除此之外，还有一些额外的奖励，称为<em>ommer</em>区块奖励，我们先来了解一下背景。</p>
+    <p>在比特币中，平均出块时间被控制在10分钟，当其中一个节点找到正确区块后，就向网络中广播该区块，其他节点收到该区块后，就停止当前的计算，重新打包新区块。其中，在网络中广播区块有一定的延迟(别的节点可能需要数十秒才能收到），但是该延迟相较于10分钟的计算时间，可以忽略不计。因此，在计算同一高度的区块时，比特币网络中不会造成太多的重复区块。</p>
+    <p>但是在以太坊的网络中，平均出块时间很短(10 ~ 20s)，很多时候，在计算同一高度的区块时，会出现广播不及时，造成很多多余区块被计算的情况。例如，在计算高度为50000的区块时，节点A找到正确的50000号区块后，向网络中广播。节点B在10s后计算出50000号区块，开始向网络中广播，再过5s才收到节点A计算出来的50000号区块。但是此时网络中的其他节点已经基于A的50000号区块计算出了50001号区块，此时B计算出来的50000号节点便不会被采用了。</p>
+    <p>因为出块速度快，受网络延迟影响，会出现大量冗余区块，降低矿工的收益，过少的收益会造成矿工的流失，降低网络的安全性。于是以太坊提出了给<em>ommer</em>节点分配收益的方法。</p>
+    <strong><em>Ommer</em>区块的奖励</strong>
+    <p>Ommer在英语中表示父母的兄弟姐妹，没有性别特指。以太坊为了避免出现性别的争论，没有使用uncle或者aunt，而采用了ommer这个单词。但在以太坊中，<em>ommer</em>区块不仅仅是指与当前区块的父区块有着共同父区块的区块，还包括与当前区块的祖宗六代区块互为兄弟姐妹的区块。</p>
+    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/ommer_block.png"/>
+    <p>如图，以107号区块为例，他的六代祖宗为Block 101 ~ 106，所以六代祖宗的兄弟姐妹区块，也就是101A，104A，104B，106A都属于107号区块的<em>Ommer</em>区块，而100A就不是。</p>
+    <p>节点在打包107号区块时，会从接收到的<em>ommer</em>区块，将最多两个<em>ommer</em>区块组成列表，一起打包到107号区块中，区块头中的<em>ommerHash</em>字段，就表示<em>ommer</em>列表的哈希值。如果107号区块将<em>ommer</em>区块打包，那么它将额外获得1/32的收益，也就是1/16Ether，作为打包<em>ommer</em>区块的奖励。</p>
+    <p>所以挖出一个区块的总收益 = 基本收益 + gas费 + 打包<em>ommer</em>区块的奖励。</p>
+    <p>而被一起打包进107号区块的<em>ommer</em>区块，也会得到一定的Ether作为收益。获得的收益取决于区块的高度和当前区块高度的差值，公式为：</p>
+    <blockquote>
+        <p>reward = (8 + N_ommer - N_current) / 8 * 2</p>
+        <p>其中2为当前区块的基本收益(不算打包ommer奖励和gas收益)</p>
+    </blockquote>
+    <p>比如，106A区块将获得 (8+106 - 107) / 8 * 2 = 14/8 Ether的奖励。</p>
+    <p>以太坊使用<em>ommer</em>区块奖励，提高了矿工们挖矿的积极性，保证了网络中节点的数量，提升了网络的安全性。</p>
+    <h4>防止恶意节点</h4>
+    <p>对于之前提到的，如果有恶意节点想用自己的链代替网络中的主链，以太坊网络有什么保护措施呢？我们来看下面的图：</p>
+    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/evil_node.png" />
+    <p>如图，如果恶意节点打算在101号区块开始分叉，形成一条自己的链，那么，他需要不段地在自己的链上产出新的区块。而某一个节点产出新的区块的概率是和节点算力成正比的，例如，节点A有全网络25%的算力，那么网络中的下一个区块有25%的概率由A产出。</p>
+    <p>假设恶意节点有25%的算力，那么它产出一个块的概率是25%，两个的概率是0.25^2 = 0.125，连续产生6个的概率是0.25^6 = 0.000244140625，小于0.1%。</p>
+    <p>所以，只要网络中大部分算力被诚实的节点掌握，我们就能有很大的概率认为，当前网络中的链是正确的链。</p>
+    <blockquote>
+        <p>更多关于链的正确性的论述，可以参考<a href="https://blog.ethereum.org/2016/05/09/on-settlement-finality/">On Settlement Finality</a>这篇文章</p>
+    </blockquote>
+    <h2>相关资料</h2>
+    <ol>
+        <li><p><a href="https://takenobu-hs.github.io/downloads/ethereum_evm_illustrated.pdf">Ethereum EVM illastrated</a></p></li>
+        <li><p><a href="https://blog.ethereum.org/2016/05/09/on-settlement-finality/">On Settlement Finality</a></p></li>
+        <li><p><a href="https://ethereum.github.io/yellowpaper/paper.pdf">以太坊黄皮书</a></p></li>
+    </ol>
