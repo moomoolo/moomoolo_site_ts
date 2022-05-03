@@ -8,8 +8,10 @@ export interface BlogProps {
   contentHTML: string
 }
 
+// 博客组件，接收html，展示内容并高亮代码
 export default function Blog({ contentHTML }: BlogProps) {
   useEffect(() => {
+    // 代码高亮
     Prism.highlightAll();
   }, [])
   return (
