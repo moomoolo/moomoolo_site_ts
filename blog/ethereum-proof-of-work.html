@@ -6,9 +6,9 @@
 <h2>什么是共识</h2>
 <p>共识，指的是分布式系统中各个节点的状态达到统一。</p>
             <p>就以太坊而言，以太坊的本质是一个状态机，每个节点储存着当前的“世界状态”（world state)(包括账户余额、智能合约数据等)，以太坊网络中每一笔交易,比如转账、创建合约，都会改变当前的“世界状态”。如下图所示：</p>
-            <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/trans_state.png"></img>
+            <img src="/blog/ethereum-proof-of-work/trans_state.png"></img>
             <p>在实际运行中，为了确定每一笔交易的顺序，避免出现双花问题，以太坊每隔一段时间(10~20秒)，会将一批交易打包成一个块，根据块内的交易改变当前的“世界状态”。如下图所示。</p>
-            <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/block_state.png"></img>
+            <img src="/blog/ethereum-proof-of-work/block_state.png"></img>
             <p>同时，每个块中还有上一个块的哈希值(parentHash字段)，前后链接，以确定交易发生的顺序，以此形成一条“区块链”。</p>
             <p>从创始区块开始，每增加一个新区块，都会改变当前的链，进而改变当前的“世界状态”。所以在以太坊的语境中，我们所说的共识，便是就正确的链及“世界状态”达成统一。</p>
 
@@ -120,7 +120,7 @@ function getCacheSize(epoch) {
     <p>同时，因为每个区块都将上一个区块的哈希值储存在<em>parentHash</em>字段中，所以，如果想要修改链上的其中一个区块，就需要重新计算该区块之后的所有区块的nounce值。这样大大增加了区块修改的难度。</p>
     <h4>链的选择</h4>
     <p>从创世区块开始，因为每个节点都能够在上一个区块之后增加新的区块，于是不可避免的，多个节点会往同一高度增加不同的区块，出现分叉(fork)，使网络中的区块形成树状结构，如图：</p>
-    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/choose_chain.png"/>
+    <img src="/blog/ethereum-proof-of-work/choose_chain.png"/>
     <p>那么，网络中的节点如何选择正确的链呢？比特币采用的是最长链策略，选取区块数最多的链，在图中对应的就是0->1->2->3B->4B->5。</p>
     <p>而以太坊稍微不同，以太坊首先计算从区块树的根节点(也就是创世节点，Block 0)到每个叶子节点(图中Block 4A、Block 5、Block 4C)路径上区块<em>difficulty</em>的总和，选取<em>difficulty</em>总和最大的那条路径作为正确的链。网络中的节点便会在这条链上增加新的区块。</p>
     <h4>激励措施</h4>
@@ -130,7 +130,7 @@ function getCacheSize(epoch) {
     <p>因为出块速度快，受网络延迟影响，会出现大量冗余区块，降低矿工的收益，过少的收益会造成矿工的流失，降低网络的安全性。于是以太坊提出了给<em>ommer</em>节点分配收益的方法。</p>
     <strong><em>Ommer</em>区块的奖励</strong>
     <p>Ommer在英语中表示父母的兄弟姐妹，没有性别特指。以太坊为了避免出现性别的争论，没有使用uncle或者aunt，而采用了ommer这个单词。但在以太坊中，<em>ommer</em>区块不仅仅是指与当前区块的父区块有着共同父区块的区块，还包括与当前区块的祖宗六代区块互为兄弟姐妹的区块。</p>
-    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/ommer_block.png"/>
+    <img src="/blog/ethereum-proof-of-work/ommer_block.png"/>
     <p>如图，以107号区块为例，他的六代祖宗为Block 101 ~ 106，所以六代祖宗的兄弟姐妹区块，也就是101A，104A，104B，106A都属于107号区块的<em>Ommer</em>区块，而100A就不是。</p>
     <p>节点在打包107号区块时，会从接收到的<em>ommer</em>区块，将最多两个<em>ommer</em>区块组成列表，一起打包到107号区块中，区块头中的<em>ommerHash</em>字段，就表示<em>ommer</em>列表的哈希值。如果107号区块将<em>ommer</em>区块打包，那么它将额外获得1/32的收益，也就是1/16Ether，作为打包<em>ommer</em>区块的奖励。</p>
     <p>所以挖出一个区块的总收益 = 基本收益 + gas费 + 打包<em>ommer</em>区块的奖励。</p>
@@ -143,7 +143,7 @@ function getCacheSize(epoch) {
     <p>以太坊使用<em>ommer</em>区块奖励，提高了矿工们挖矿的积极性，保证了网络中节点的数量，提升了网络的安全性。</p>
     <h4>防止恶意节点</h4>
     <p>对于之前提到的，如果有恶意节点想用自己的链代替网络中的主链，以太坊网络有什么保护措施呢？我们来看下面的图：</p>
-    <img src="https://moomoolo.site/static_asset/blog/ethereum-proof-of-work/evil_node.png" />
+    <img src="/blog/ethereum-proof-of-work/evil_node.png" />
     <p>如图，如果恶意节点打算在101号区块开始分叉，形成一条自己的链，那么，他需要不段地在自己的链上产出新的区块。而某一个节点产出新的区块的概率是和节点算力成正比的，例如，节点A有全网络25%的算力，那么网络中的下一个区块有25%的概率由A产出。</p>
     <p>假设恶意节点有25%的算力，那么它产出一个块的概率是25%，两个的概率是0.25^2 = 0.125，连续产生6个的概率是0.25^6 = 0.000244140625，小于0.1%。</p>
     <p>所以，只要网络中大部分算力被诚实的节点掌握，我们就能有很大的概率认为，当前网络中的链是正确的链。</p>
