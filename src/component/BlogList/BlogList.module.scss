@@ -47,7 +47,8 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      transition: 0.3s;
+      // 设置为全部的的话会生产环境出现跳动？
+      transition: box-shadow 0.3s ease-in-out;
     }
     a:hover {
       box-shadow: 0 0 3px #86909c;
