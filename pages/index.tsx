@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import React from 'react';
-import Nav from '../src/Nav';
+import Nav from '../src/component/Nav';
 
 export default function Index() {
   return (
