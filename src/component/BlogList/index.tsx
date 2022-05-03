@@ -2,7 +2,7 @@ import Link from 'next/link';
 import React from 'react'
 import style from './BlogList.module.scss';
 
-type BlogInfo = {
+export type BlogInfo = {
   path: string,
   title: string,
   publishTime: string,
