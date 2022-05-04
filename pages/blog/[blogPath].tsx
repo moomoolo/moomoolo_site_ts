@@ -6,7 +6,6 @@ import type { GetStaticPaths, GetStaticProps } from 'next';
 import { ParsedUrlQuery } from "querystring";
 import path from 'path';
 import { promises as fs } from 'fs';
-import { BlogInfo } from "../../src/types/BlogInfo";
 import { getBlogInfoList } from "../../src/util/getBlogInfoList";
 
 interface BlogPageProps {
