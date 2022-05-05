@@ -9,13 +9,56 @@
 <p>接下来，我们讨论一下AMM算法的原理。</p>
 
 <h2>固定乘积的做市商模型</h2>
-<p>Uniswap V2交易使用的是固定乘积的做市商模型（Constant Product Market Maker Model）。在一个币对的流动性池中，每次交易后，两个币种数量的乘积不变，保持为常数\(k\)（在实际的交易中，因为存在手续费和整型精度问题的影响，交易后\(k\)的值会有所变换，但算法保证 \(k\)值不会减小）。</p>
+<p>Uniswap V2交易使用的是固定乘积的做市商模型（Constant Product Market Maker Model）。在一个币对的流动性池中，每次交易后，两个币种数量的乘积不变，保持为常数\(k\)（在实际的交易中，因为存在手续费和整型精度问题的影响，交易后\(k\)的值会有所改变，但算法保证 \(k\)值不会减小）。</p>
+<h3>将固定数量的币换成另一种币</h3>
 <p>假设一个池子由A和B两种币组成（ETH、USDT、AAVE等），当前池子中A币的数量为\(x\)，B币的数量为\(y\)，两币数量乘积为\(k\)，即：\(x * y = k\)。在交易时，假设交易者使用数量为\(\Delta x\)的A币换到了数量为\(\Delta y\)的B币，则交换前后，池子中两种币的数量满足以下等式（暂时不考虑手续费）：</p>
-<p>$$x * y = (x + \Delta x) \cdot (y - \Delta y) = k$$</p>
+<p>$$ x * y = (x + \Delta x) \cdot (y - \Delta y) = k \tag{1} $$</p>
 <p>对上述等式进行变换，可以得到下面的式子：</p>
-<p>$$ \Delta y = \frac{\Delta x}{x + \Delta x} \cdot y $$</p>
-<p>在Uniswap V2中，每次交易会抽取0.3%的手续费，记为\(\rho\)，即 \(\rho = 0.003\)。这笔手续费从 \(\Delta x\)中抽取，故只有\((1 - \rho) \cdot \Delta x\)的A币会用于交换成B币，剩下\(\rho \cdot \Delta x\)的A币会作为手续费添加到池子中。故考虑手续费后，计算得到B币数量的公式就变成：</p>
-<p>$$ \Delta y = \frac{(1 - \rho) \cdot \Delta x}{x + (1 - \rho) \cdot \Delta x} \cdot y $$</p>
+<p>$$ \Delta y = \frac{\Delta x}{x + \Delta x} \cdot y \tag{2}$$</p>
+<p>在Uniswap V2中，每次交易会抽取0.3%的手续费，记为\(\rho\)，即 \(\rho = 0.003\)。这笔手续费从 \(\Delta x\)中抽取，故只有\((1 - \rho) \cdot \Delta x\)的A币会用于交换成B币，剩下\(\rho \cdot \Delta x\)的A币会作为手续费添加到池子中。此时，上面的等式就会变成：</p>
+<p>$$ x * y = (x + (1 - \rho) \cdot \Delta x) \cdot (y - \Delta y) = k \tag{3} $$</p>
+<p>在这个等式下，\(\Delta y\)的计算方式就变成了：</p>
+<p>$$ \Delta y = \frac{(1 - \rho) \cdot \Delta x}{x + (1 - \rho) \cdot \Delta x} \cdot y \tag{4} $$</p>
 <p>将\((1 - \rho)\)记作\(\gamma\)，即\(\gamma = 1 - \rho = 0.997\)，公式可改写成：</p>
-<p>$$ \Delta y = \frac{\gamma \cdot \Delta x}{x + \gamma \cdot \Delta x} \cdot y $$</p>
-<p>这就是Uniswap V2在进行交易时所采用的计算方法。</p>
+<p>$$ \Delta y = \frac{\gamma \cdot \Delta x}{x + \gamma \cdot \Delta x} \cdot y \tag{5} $$</p>
+<p>这就是Uniswap V2在进行交易时所采用的计算方法。可以看出，在引入手续费后，同样数量的A币能换到的B币，即\(\Delta y\)就变少了，而加到池子中的A币数量\(\Delta x\)没有变化，所以\((x + \Delta x) \cdot (y - \Delta y)\)就会稍大于\(x \cdot y\)，也就是说\(k\)值会稍微增长。故乘积并不是严格的常数。</p>
+<p>在Uniswap V2中，计算交换得到的代币数量的代码如下：</p>
+<pre><code
+    class="language-sol"
+>// @uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol
+function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
+    // reserveIn和reserveOut分别是当前池子中两种币的数量
+    require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
+    require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
+    // 用于交换的币需要扣除手续费
+    uint amountInWithFee = amountIn.mul(997);
+    uint numerator = amountInWithFee.mul(reserveOut);
+    // 这里将分子分母都放大了1000倍，避免小数
+    uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+    // 这里向下取整
+    amountOut = numerator / denominator;
+}
+</code></pre>
+<h3>将一种币换成固定数量的另一种币</h3>
+<p>假设在A/B交易对中，交易者希望换取\(\Delta y\)数量的B币，那么他需要花费多少A币呢？根据等式\((3)\)，我们可以推算出下面的等式：</p>
+<p>$$ \Delta x = \frac{x \cdot \Delta y}{(1 - \rho) \cdot (y - \Delta y)} \tag{6} $$</p>
+<p>在Uniswap V2中，\(1 - \rho = 1 - 0.003 = 0.997\)。在合约中，代码如下：</p>
+<pre><code
+    class="language-sol"
+>// @uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol
+function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
+    require(amountOut > 0, 'UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT');
+    require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
+    // 这里将分子分母都放大了1000倍，避免小数
+    uint numerator = reserveIn.mul(amountOut).mul(1000);
+    uint denominator = reserveOut.sub(amountOut).mul(997);
+    // 这里向上取整
+    amountIn = (numerator / denominator).add(1);
+}
+</code></pre>
+<p><em>PS：在计算获得的代币时，合约向下取整，而在计算需要的代币时，合约是向上取整，这里避免因为整数精度问题造成的\(k\)值减小。（黑心）</em></p>
+<h3>交易路由</h3>
+<p>并不是任意两种币都有可互换的池子，假如用户想要把USDT换成SHIB，但没有SHIB/USDT的池子（只是举个例子，Uniswap中应该有这个池子），而只有ETH/USDT和SHIB/ETH的池子，那么，交易员就需要先将USDT换成ETH，再用ETH去兑换SHIB。Uniswap V2的合约支持多池子的连锁交易，在交易时，在参数path中提供兑换链路上各个币的合约，该例子中顺序就是<em>（USDT->ETH->SHIB）</em>，智能合约就会按照该顺序，首先去ETH/USDT池子中将USDT换成ETH，再去SHIB/ETH池子中将ETH换成SHIB。在每个池子中兑换都需要缴纳手续费，所以交易应该避免交易的路由过长。 </p>
+<p>交易的路由，即path参数一般由Uniswap的api进行计算，无需手动计算。如果想进行特殊的交易，也可以手动输入path参数进行交易。</p>
+<h2>流动性池</h2>
+<p>对于两种币A和B，如果需要在Uniswap上交易，则首先需要通过调用<code>UniswapV2Factory.sol（工厂）</code>合约的<code>createPair</code>方法创建交易对合约<code>UniswapV2Pair.sol</code>的实例并部署在链上。</p>
