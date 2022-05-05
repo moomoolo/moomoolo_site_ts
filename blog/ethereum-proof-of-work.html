@@ -55,7 +55,7 @@ function getCacheSize(epoch) {
             <p>之后，我们便根据计算出来的<em>cache</em>大小，填充<em>cache</em>的内容。首先是使用<em>seed hash</em>填充(填充过程见代码)，填满后，进行三轮RandMemoHash计算，得到最终的<em>cache</em>。具体过程如下</p>
 <pre><code 
 class="language-javascript"
->const xor = require(\'buffer-xor\');  //  Buffer上的按位异或
+>const xor = require('buffer-xor');  //  Buffer上的按位异或
 const HASH_BYTE = 64;
 function makeCache(size, seedHash) {
     let n = size / HASH_BYTE;
