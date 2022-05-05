@@ -60,6 +60,13 @@
         box-sizing: border-box;
     }
 
+    code {
+        background-color: #f6f7f8;
+        border: .1rem solid rgba(0,0,0,.1);
+        border-radius: .4rem;
+        font-family: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    }
+
     ol {
         width: 100%;
         padding: 0 0 0 30px;
