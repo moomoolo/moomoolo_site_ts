@@ -9,4 +9,13 @@
 <p>接下来，我们讨论一下AMM算法的原理。</p>
 
 <h2>固定乘积的做市商模型</h2>
-<p>$$a \ne b$$</p>
+<p>Uniswap V2交易使用的是固定乘积的做市商模型（Constant Product Market Maker Model）。在一个币对的流动性池中，每次交易后，两个币种数量的乘积不变，保持为常数\(k\)（在实际的交易中，因为存在手续费和整型精度问题的影响，交易后\(k\)的值会有所变换，但算法保证 \(k\)值不会减小）。</p>
+<p>假设一个池子由A和B两种币组成（ETH、USDT、AAVE等），当前池子中A币的数量为\(x\)，B币的数量为\(y\)，两币数量乘积为\(k\)，即：\(x * y = k\)。在交易时，假设交易者使用数量为\(\Delta x\)的A币换到了数量为\(\Delta y\)的B币，则交换前后，池子中两种币的数量满足以下等式（暂时不考虑手续费）：</p>
+<p>$$x * y = (x + \Delta x) \cdot (y - \Delta y) = k$$</p>
+<p>对上述等式进行变换，可以得到下面的式子：</p>
+<p>$$ \Delta y = \frac{\Delta x}{x + \Delta x} \cdot y $$</p>
+<p>在Uniswap V2中，每次交易会抽取0.3%的手续费，记为\(\rho\)，即 \(\rho = 0.003\)。这笔手续费从 \(\Delta x\)中抽取，故只有\((1 - \rho) \cdot \Delta x\)的A币会用于交换成B币，剩下\(\rho \cdot \Delta x\)的A币会作为手续费添加到池子中。故考虑手续费后，计算得到B币数量的公式就变成：</p>
+<p>$$ \Delta y = \frac{(1 - \rho) \cdot \Delta x}{x + (1 - \rho) \cdot \Delta x} \cdot y $$</p>
+<p>将\((1 - \rho)\)记作\(\gamma\)，即\(\gamma = 1 - \rho = 0.997\)，公式可改写成：</p>
+<p>$$ \Delta y = \frac{\gamma \cdot \Delta x}{x + \gamma \cdot \Delta x} \cdot y $$</p>
+<p>这就是Uniswap V2在进行交易时所采用的计算方法。</p>
