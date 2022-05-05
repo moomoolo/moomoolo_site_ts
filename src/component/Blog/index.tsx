@@ -1,8 +1,11 @@
 import React from "react";
 import style from "./Blog.module.scss";
 import Prism from "prismjs";
+import "prismjs/components/prism-solidity";
 import "prismjs/themes/prism-tomorrow.css";
 import { useEffect } from "react";
+
+
 export interface BlogProps {
   contentHTML: string;
 }
