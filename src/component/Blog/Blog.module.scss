@@ -2,6 +2,7 @@
     width: 100%;
     display: flex;
     justify-content: center;
+    overflow: hidden;
 }
 
 .content {
@@ -83,5 +84,16 @@
         p {
             text-indent: 0;
         }
+    }
+
+    // 数学公式
+    mjx-container {
+        max-width: 100%;
+        overflow: auto;
+        min-width: 0px !important;
+    }
+
+    mjx-container::-webkit-scrollbar {
+        display: none;
     }
 }
