@@ -64,14 +64,14 @@ function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal p
 <p>例如，在ETH/USDT交易对中，池子里有5个ETH和15000个USDT，那么就能用\(15000 / 5 = 3000\)来反映ETH当前的价格。</p>
 
 <h3>关于滑点</h3>
-<p>在Uniswap V2的合约中，并没有对于滑点的计算，Uniswap V2的前端利用页面滑点值计算出其他的参数。在<code>swapExactTokensForTokens</code>、<code>swapExactETHForTokens</code>和<code>swapExactTokensForETH</code>方法中，前端根据滑点计算出交换得到币的最少数量<code>amountOutMin</code>并作为参数传入，要求交易得到的币不低于该最少数量，不然交易失败。</p>
-<p>在<code>swapTokensForExactTokens</code>和<code>swapTokensForExactETH</code>方法中，前端根据滑点计算出交易所能提供币的最大数量<code>amountInMax</code>，合约保证交易所需的币不超过该数量，不然交易失败。在<code>swapETHFoExactTokens</code>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<code>msg.value</code>作为输入上限。</p>
+<p>在Uniswap V2的合约中，并没有对于滑点的计算，Uniswap V2的前端利用页面滑点值计算出其他的参数。在<mark>swapExactTokensForTokens</mark>、<mark>swapExactETHForTokens</mark>和<mark>swapExactTokensForETH</mark>方法中，前端根据滑点计算出交换得到币的最少数量<mark>amountOutMin</mark>并作为参数传入，要求交易得到的币不低于该最少数量，不然交易失败。</p>
+<p>在<mark>swapTokensForExactTokens</mark>和<mark>swapTokensForExactETH</mark>方法中，前端根据滑点计算出交易所能提供币的最大数量<mark>amountInMax</mark>，合约保证交易所需的币不超过该数量，不然交易失败。在<mark>swapETHFoExactTokens</mark>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<mark>msg.value</mark>作为输入上限。</p>
 <h3>交易路由</h3>
 <p>并不是任意两种币都有可互换的池子，假如用户想要把USDT换成SHIB，但没有SHIB/USDT的池子（只是举个例子，Uniswap中应该有这个池子），而只有ETH/USDT和SHIB/ETH的池子，那么，交易员就需要先将USDT换成ETH，再用ETH去兑换SHIB。Uniswap V2的合约支持多池子的连锁交易，在交易时，在参数path中提供兑换链路上各个币的合约，该例子中顺序就是<em>（USDT->ETH->SHIB）</em>，智能合约就会按照该顺序，首先去ETH/USDT池子中将USDT换成ETH，再去SHIB/ETH池子中将ETH换成SHIB。在每个池子中兑换都需要缴纳手续费，所以交易应该避免交易的路由过长。 </p>
 <p>交易的路由，即path参数一般由Uniswap的api进行计算，无需手动计算。如果想进行特殊的交易，也可以手动输入path参数进行交易。</p>
 <h2>流动性池</h2>
-<p>对于两种币A和B，如果需要在Uniswap上交易，则首先需要通过调用<code>UniswapV2Factory.sol（工厂）</code>合约的<code>createPair</code>方法创建交易对合约<code>UniswapV2Pair.sol</code>的实例并部署在链上。</p>
-<p><code>UniswapV2Pair</code>合约用于存储A和B两种代币，来组成流动性池，而该合约本身又实现了ERC-20的接口，所以其本身也是一种代币合约。每种币对都对应唯一的代币合约，该代币被称为<strong>流动性代币（Liquidity Token）</strong>，作为提供流动性的凭证。在流动性供应商提供流动性时，合约铸造流动性代币给流动性供应商，在抽取流动性时，合约销毁代币，并给流动性供应商返还对应的流动性份额和手续费。</p>
+<p>对于两种币A和B，如果需要在Uniswap上交易，则首先需要通过调用<mark>UniswapV2Factory.sol（工厂）</mark>合约的<mark>createPair</mark>方法创建交易对合约<mark>UniswapV2Pair.sol</mark>的实例并部署在链上。</p>
+<p><mark>UniswapV2Pair</mark>合约用于存储A和B两种代币，来组成流动性池，而该合约本身又实现了ERC-20的接口，所以其本身也是一种代币合约。每种币对都对应唯一的代币合约，该代币被称为<strong>流动性代币（Liquidity Token）</strong>，作为提供流动性的凭证。在流动性供应商提供流动性时，合约铸造流动性代币给流动性供应商，在抽取流动性时，合约销毁代币，并给流动性供应商返还对应的流动性份额和手续费。</p>
 <h3>增加流动性</h3>
 <p>增加流动性，也就是向池子中增加币对，在A/B交易对中，流动性提供商可以向池子中提供A币和B币，来赚取交易的手续费。那么，提供A、B两种币的数量怎么计算呢？</p>
 <p>假设交易对A/B刚被创建，池子中还没有A币或是B币，也就是没有流动性，那么第一个提供流动性的人，可以提供任意数量的两种币。假设供应商提供了\(x\)个A币和\(y\)个B币，那么合约将会铸造\(\sqrt{x \cdot y}\)个流动性代币。此处为了避免之后出现数值计算上的错误，合约会将首次铸造的1000个单位的流动性代币销毁掉（因为代币常用的精度是18位，所以进行精度转换后是\(10^{-15}\)个流动性代币，可以忽略不计）。最终，首次提供流动性的供应商能拿到\(\sqrt{x \cdot y} - 10^{-15}\)个流动性代币。</p>
@@ -147,7 +147,7 @@ function burn(address to) external lock returns (uint amount0, uint amount1) {
 </code></pre>
 
 <h3>协议手续费</h3>
-<p>Uniswap V2保留了一个协议手续费的开关，如果打开，则Uniswap协议会从每次交易中收取0.05%的手续费，这笔手续费会从流动性供应商赚取的手续费中扣除。也就是说，一笔交易收取0.3%的手续费中，有0.25%会给流动性供应商，而剩下的0.05%会给到协议所设置的<code>feeTo</code>地址。当前该暂时不收取该手续费，但以后有可能会开启（开启后Uniswap简直就是印钞机）。</p>
+<p>Uniswap V2保留了一个协议手续费的开关，如果打开，则Uniswap协议会从每次交易中收取0.05%的手续费，这笔手续费会从流动性供应商赚取的手续费中扣除。也就是说，一笔交易收取0.3%的手续费中，有0.25%会给流动性供应商，而剩下的0.05%会给到协议所设置的<mark>feeTo</mark>地址。当前该暂时不收取该手续费，但以后有可能会开启（开启后Uniswap简直就是印钞机）。</p>
 
 <h2>无常损失</h2>
 <p><strong>无常损失（Impermanent Loss）</strong>是一种流动性供应商的暂时/非永久损失。当币价出现较大波动时，流动性供应商所持有的流动性份额所能兑换到的币的价值低于提供流动性时发送给池子的币的价值就叫做无常损失。</p>
