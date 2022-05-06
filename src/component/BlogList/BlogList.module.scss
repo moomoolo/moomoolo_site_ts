@@ -53,8 +53,9 @@
     a:hover {
       box-shadow: 0 0 3px #86909c;
     }
-    li:not(:nth-child(1)) {
-      margin-top: 30px;
-    }
+  }
+
+  li:not(:nth-child(1)) {
+    margin-top: 30px;
   }
 }
