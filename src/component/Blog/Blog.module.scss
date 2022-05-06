@@ -96,7 +96,8 @@
     // 数学公式
     mjx-container {
         max-width: 100%;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: hidden;
         min-width: 0px !important;
     }
 
