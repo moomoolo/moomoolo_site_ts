@@ -16,13 +16,11 @@ export default function BlogList({ blogInfoList }: Props) {
         blogInfoList.map((blogInfo) => {
           return (
             <li key={blogInfo.path}>
-              <Link href={"/blog/" + blogInfo.path}>
-                <a>
+                <a href={"/blog/" + blogInfo.path}>
                   <div className={style.publish_time}>{blogInfo.publishTime}</div>
                   <div className={style.title}>{blogInfo.title}</div>
                   <div className={style.abstract}>{blogInfo.abstract}</div>
                 </a>
-              </Link>
             </li>
           )
         })
