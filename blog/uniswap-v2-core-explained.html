@@ -64,8 +64,9 @@ function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal p
 <p>例如，在ETH/USDT交易对中，池子里有5个ETH和15000个USDT，那么就能用\(15000 / 5 = 3000\)来反映ETH当前的价格。</p>
 
 <h3>关于滑点</h3>
-<p>在Uniswap V2的合约中，并没有对于滑点的计算，Uniswap V2的前端利用页面滑点值计算出其他的参数。在<mark>swapExactTokensForTokens</mark>、<mark>swapExactETHForTokens</mark>和<mark>swapExactTokensForETH</mark>方法中，前端根据滑点计算出交换得到币的最少数量<mark>amountOutMin</mark>并作为参数传入，要求交易得到的币不低于该最少数量，不然交易失败。</p>
-<p>在<mark>swapTokensForExactTokens</mark>和<mark>swapTokensForExactETH</mark>方法中，前端根据滑点计算出交易所能提供币的最大数量<mark>amountInMax</mark>，合约保证交易所需的币不超过该数量，不然交易失败。在<mark>swapETHFoExactTokens</mark>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<mark>msg.value</mark>作为输入上限。</p>
+<p>在Uniswap V2的合约中，并没有对于滑点的计算，Uniswap V2的前端利用页面滑点值计算出其他的参数来供合约使用。</p>
+<p>在<mark>swapExactTokensForTokens</mark>、<mark>swapExactETHForTokens</mark>和<mark>swapExactTokensForETH</mark>方法中，前端根据滑点计算出交换得到币的最少数量<mark>amountOutMin</mark>并作为参数传入，要求交易得到的币不低于该最少数量，不然交易回滚。例如，在APE/USDT交易对中，交易员输入100APE，前端页面根据当前池子中的币量计算出能换取的USDT数量为1200（根据公式\((5)\)），滑点设置为5%，那么<mark>amountOutMin</mark>参数的计算结果就是\(1200 * (1 - 5\%) = 1140\)。该交易以及100个APE被发送至Uniswap合约，如果最终交易得到的USDT数量不少于1140个USDT，那么交易成功，否则交易回滚。在很多人购买或卖出时，因为交易顺序的不确定，所以容易发生最终结果与计算结果不符的情况。</p>
+<p>与上面的例子类似，在<mark>swapTokensForExactTokens</mark>和<mark>swapTokensForExactETH</mark>方法中，前端根据当前池子信息和公式\((6)\)计算出交易员需要提供币的数量，再根据滑点计算出交易员提供的币的数量上限<mark>amountInMax</mark>作为参数传入合约。如果最终交易需要的币不超过上限，该交易成功，否则交易失败并进行回滚。在<mark>swapETHFoExactTokens</mark>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<mark>msg.value</mark>作为输入上限。</p>
 <h3>交易路由</h3>
 <p>并不是任意两种币都有可互换的池子，假如用户想要把USDT换成SHIB，但没有SHIB/USDT的池子（只是举个例子，Uniswap中应该有这个池子），而只有ETH/USDT和SHIB/ETH的池子，那么，交易员就需要先将USDT换成ETH，再用ETH去兑换SHIB。Uniswap V2的合约支持多池子的连锁交易，在交易时，在参数path中提供兑换链路上各个币的合约，该例子中顺序就是<em>（USDT->ETH->SHIB）</em>，智能合约就会按照该顺序，首先去ETH/USDT池子中将USDT换成ETH，再去SHIB/ETH池子中将ETH换成SHIB。在每个池子中兑换都需要缴纳手续费，所以交易应该避免交易的路由过长。 </p>
 <p>交易的路由，即path参数一般由Uniswap的api进行计算，无需手动计算。如果想进行特殊的交易，也可以手动输入path参数进行交易。</p>
@@ -74,11 +75,15 @@ function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal p
 <p><mark>UniswapV2Pair</mark>合约用于存储A和B两种代币，来组成流动性池，而该合约本身又实现了ERC-20的接口，所以其本身也是一种代币合约。每种币对都对应唯一的代币合约，该代币被称为<strong>流动性代币（Liquidity Token）</strong>，作为提供流动性的凭证。在流动性供应商提供流动性时，合约铸造流动性代币给流动性供应商，在抽取流动性时，合约销毁代币，并给流动性供应商返还对应的流动性份额和手续费。</p>
 <h3>增加流动性</h3>
 <p>增加流动性，也就是向池子中增加币对，在A/B交易对中，流动性提供商可以向池子中提供A币和B币，来赚取交易的手续费。那么，提供A、B两种币的数量怎么计算呢？</p>
-<p>假设交易对A/B刚被创建，池子中还没有A币或是B币，也就是没有流动性，那么第一个提供流动性的人，可以提供任意数量的两种币。假设供应商提供了\(x\)个A币和\(y\)个B币，那么合约将会铸造\(\sqrt{x \cdot y}\)个流动性代币。此处为了避免之后出现数值计算上的错误，合约会将首次铸造的1000个单位的流动性代币销毁掉（因为代币常用的精度是18位，所以进行精度转换后是\(10^{-15}\)个流动性代币，可以忽略不计）。最终，首次提供流动性的供应商能拿到\(\sqrt{x \cdot y} - 10^{-15}\)个流动性代币。</p>
-<p>如果池子中已经有币了，那么流动性供应商只能按照池子中当前币的数量来提供流动性。假设当前池子中有\(x\)个A币和\(y\)个B币，且总的流动性代币（包括被销毁掉的\(10^{-15}\)个）数量为\(l\)。那么，当流动性供应商想提供\(\Delta x\)的A币和\(\Delta y\)的B币，则必须满足：</p>
+<p>假设交易对A/B刚被创建，池子中还没有A币或是B币，也就是没有流动性，那么第一个提供流动性的人，可以提供任意数量的两种币。假设供应商提供了\(x\)个A币和\(y\)个B币，那么合约将会铸造\(\sqrt{x \cdot y}\)个流动性代币。例如在ETH/USDT交易对中，如果第一个流动性供应商提供了1个ETH和100个USDT，那么合约将铸造\(\sqrt{1 * 100} = 10\)个流动性代币。但第一个提供流动性的供应商并不能将这些代币全部拿到，接下来会讨论。</p>
+<p>如果池子中已经有币了，那么流动性供应商只能按照池子中当前币的数量来提供流动性。假设当前池子中有\(x\)个A币和\(y\)个B币，且总的流动性代币数量为\(l\)。那么，当流动性供应商想提供\(\Delta x\)的A币和\(\Delta y\)的B币，则必须满足：</p>
 <p>$$ \frac{\Delta x}{\Delta y} = \frac{x}{y} \tag{8} $$</p>
 <p>当供应商按要求的比例提供A币和B币后，他将会得到\(\Delta l\)个流动性代币，其中\(\Delta l\)的计算方法如下：</p>
 <p>$$ \Delta l = \frac{\Delta x}{x} \cdot l = \frac{\Delta y}{y} \cdot l \tag{9} $$</p>
+<p>在讨论代币数量时，我们通常已经对其进行了精度的转换。通常，一种代币的最小单位是\(10^{-18}\)，对于ETH，\(10^{-18}\)ETH = 1Wei。流动性代币也有最小的单位，即\(10^{-18}\)个，所以每次添加流动性时，都需要铸造出至少\(10^{-18}\)个流动性代币。那么，考虑这样的情况：在ETH/USDT交易对中，首次提供流动性的供应商只提供了\(10^{-18}\)个ETH和\(10^{-18}\)个USDT，换取了\(\sqrt{10^{-18} * 10^{-18}} = 10^{-18}\)个流动性代币，也就是一个最小单位的流动性代币。此时，一个最小单位的流动性代币价值为\(10^{-18}\)个ETH加\(10^{-18}\)个USDT，价值微不足道。</p>
+<p>这个时候，该流动性供应商直接给池子发送10个ETH和1000个USDT，而不是通过添加流动性的方法，那么此时流动性池里就有\(10 + 10^{-18}\)个ETH和\(10 + 10^{-18}\)个USDT，但仍然只有\(10^{-18}\)个流动性代币。此时，一个流动性代币的价值就是\(10 + 10^{-18}\)个ETH和\(10 + 10^{-18}\)个USDT，如果别人想添加流动性，为了能至少铸造出1个最小单位的流动性代币，就至少需要添加相同数量的ETH和USDT，大大提高了加池子的成本。</p>
+<p>为解决这个问题，Uniswap合约会将首次铸造的1000个最小单位的流动性代币，即\(10^{-18}\)个发送给0地址（不是销毁，仍然算在发行总量中）。对于正常添加池子的行为，这些代币的价值是微不足道的，但是如果流动性供应商想抬高最小单位流动性代币的价格，比如抬高到100U一个，那么他将损失掉1000 * 100U = 100,000U，这样能避免这种“捐赠攻击”的出现。</p>
+<p>所以，首次提供流动性的供应商最终能拿到\(\sqrt{x \cdot y} - 10^{-15}\)个流动性代币。</p>
 <p>在Uniswap V2中，增加流动性的代码如下：</p>
 <pre><code
     class="language-sol"
@@ -96,6 +101,8 @@ function mint(address to) external lock returns (uint liquidity) {
     uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
     if (_totalSupply == 0) {
         liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
+        // 销毁最初的1000个最小单位的流动性代币
+        // MINIMUM_LIQUIDITY = 1000
        _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
     } else {
         // 整型除法，选最小值（黑心）
