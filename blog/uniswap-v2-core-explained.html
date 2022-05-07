@@ -66,7 +66,7 @@ function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal p
 <h3>关于滑点</h3>
 <p>在Uniswap V2的合约中，并没有对于滑点的计算，Uniswap V2的前端利用页面滑点值计算出其他的参数来供合约使用。</p>
 <p>在<mark>swapExactTokensForTokens</mark>、<mark>swapExactETHForTokens</mark>和<mark>swapExactTokensForETH</mark>方法中，前端根据滑点计算出交换得到币的最少数量<mark>amountOutMin</mark>并作为参数传入，要求交易得到的币不低于该最少数量，不然交易回滚。例如，在APE/USDT交易对中，交易员输入100APE，前端页面根据当前池子中的币量计算出能换取的USDT数量为1200（根据公式\((5)\)），滑点设置为5%，那么<mark>amountOutMin</mark>参数的计算结果就是\(1200 * (1 - 5\%) = 1140\)。该交易以及100个APE被发送至Uniswap合约，如果最终交易得到的USDT数量不少于1140个USDT，那么交易成功，否则交易回滚。在很多人购买或卖出时，因为交易顺序的不确定，所以容易发生最终结果与计算结果不符的情况。</p>
-<p>与上面的例子类似，在<mark>swapTokensForExactTokens</mark>和<mark>swapTokensForExactETH</mark>方法中，前端根据当前池子信息和公式\((6)\)计算出交易员需要提供币的数量，再根据滑点计算出交易员提供的币的数量上限<mark>amountInMax</mark>作为参数传入合约。如果最终交易需要的币不超过上限，该交易成功，否则交易失败并进行回滚。在<mark>swapETHFoExactTokens</mark>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<mark>msg.value</mark>作为输入上限。</p>
+<p>与上面的例子类似，在<mark>swapTokensForExactTokens</mark>和<mark>swapTokensForExactETH</mark>方法中，前端根据当前池子信息和公式\((6)\)计算出交易员需要提供币的数量，再根据滑点计算出交易员提供的币的数量上限<mark>amountInMax</mark>作为参数传入合约。例如，购买100个APE预计需要1200个USDT，设置滑点为\(5\%\)，则<mark>amountInMax</mark>的值为\(1200 * (1 + 5\%) = 1260\)。如果最终交易需要的币不超过上限，该交易成功，否则交易失败并进行回滚。在<mark>swapETHFoExactTokens</mark>方法中，没有显式的参数传入，而用交易者发送给合约的ETH数量<mark>msg.value</mark>作为输入上限。</p>
 <h3>交易路由</h3>
 <p>并不是任意两种币都有可互换的池子，假如用户想要把USDT换成SHIB，但没有SHIB/USDT的池子（只是举个例子，Uniswap中应该有这个池子），而只有ETH/USDT和SHIB/ETH的池子，那么，交易员就需要先将USDT换成ETH，再用ETH去兑换SHIB。Uniswap V2的合约支持多池子的连锁交易，在交易时，在参数path中提供兑换链路上各个币的合约，该例子中顺序就是<em>（USDT->ETH->SHIB）</em>，智能合约就会按照该顺序，首先去ETH/USDT池子中将USDT换成ETH，再去SHIB/ETH池子中将ETH换成SHIB。在每个池子中兑换都需要缴纳手续费，所以交易应该避免交易的路由过长。 </p>
 <p>交易的路由，即path参数一般由Uniswap的api进行计算，无需手动计算。如果想进行特殊的交易，也可以手动输入path参数进行交易。</p>
